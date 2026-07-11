@@ -1,14 +1,30 @@
 ---
 name: logic-prover
 description: Generate synthetic logic textbooks Phi Method B (P0 50B corpus)
-triggers: ['logic', 'prover', 'phi', 'truth table']
+triggers:
+- logic
+- prover
+- phi
+- truth table
 j_space_target: S2
 half_life: 300
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes:
+- code-bench
+requires:
+- safety-scanner
+complementary:
+- code-bench
 ---
 
 # Logic Prover

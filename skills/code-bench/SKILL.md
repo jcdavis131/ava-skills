@@ -1,14 +1,30 @@
 ---
 name: code-bench
 description: Exec-verified Python generation (P2 code)
-triggers: ['code', 'bench', 'exec']
+triggers:
+- code
+- bench
+- exec
 j_space_target: S2
 half_life: 350
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes:
+- eval-harness-runner
+requires:
+- safety-scanner
+- logic-prover
+complementary:
+- logic-prover
 ---
 
 # Code Bench

@@ -1,14 +1,31 @@
 ---
 name: family-brain-wiki
 description: Bridge to Family Brain OS WikiTab export wikiPages -> S2
-triggers: ['family', 'wiki', 'family-brain', 'davis']
+triggers:
+- family
+- wiki
+- family-brain
+- davis
 j_space_target: S2
 half_life: 300
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes: []
+requires:
+- openwiki-sync
+- memory-router
+complementary:
+- openwiki-sync
+- jspace-inspector
 ---
 
 # Family Brain Wiki Bridge

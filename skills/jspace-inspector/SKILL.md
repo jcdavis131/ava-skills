@@ -1,16 +1,35 @@
 ---
 name: jspace-inspector
 description: Inspect J-space slots, run 5 canonical tests live
-triggers: ['inspect', 'jspace', 'france china', 'spider ant', 'soccer rugby', 'safety']
+triggers:
+- inspect
+- jspace
+- france china
+- spider ant
+- soccer rugby
+- safety
 j_space_target: Planner
 half_life: 150
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes:
+- eval-harness-runner
+requires:
+- memory-router
+- safety-scanner
+- openwiki-sync
+complementary:
+- family-brain-wiki
 ---
-
 
 # JSpace Inspector
 Inspect S1 Fast hl8, S2 Slow hl300, Critic hl30, Planner hl150

@@ -1,14 +1,32 @@
 ---
 name: memory-router
 description: Route between S1/S2/Planner bias control
-triggers: ['router', 'arbitration', 'bias', 'memory']
+triggers:
+- router
+- arbitration
+- bias
+- memory
 j_space_target: Router
 half_life: 30
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes:
+- jspace-inspector
+- openwiki-sync
+- family-brain-wiki
+requires:
+- safety-scanner
+complementary:
+- eval-harness-runner
 ---
 
 # Memory Router

@@ -1,14 +1,30 @@
 ---
 name: eval-harness-runner
 description: Run ava-open-harness, gate stable checkpoint
-triggers: ['harness', 'eval', 'gate']
+triggers:
+- harness
+- eval
+- gate
 j_space_target: Planner
 half_life: 150
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes: []
+requires:
+- jspace-inspector
+- safety-scanner
+- code-bench
+complementary:
+- memory-router
 ---
 
 # Eval Harness Runner

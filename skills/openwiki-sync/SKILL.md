@@ -1,16 +1,35 @@
 ---
 name: openwiki-sync
-description: Sync OpenWiki personal wiki (~/.openwiki/wiki) into S2 Slow hl300 verbalizable memory
-triggers: ['openwiki', 'wiki', 'personal brain', 'sync wiki', '~/.openwiki']
+description: Sync OpenWiki personal wiki (~/.openwiki/wiki) into S2 Slow hl300 verbalizable
+  memory
+triggers:
+- openwiki
+- wiki
+- personal brain
+- sync wiki
+- ~/.openwiki
 j_space_target: S2
 half_life: 300
 broadcast_target: 0.22
 reportability_target: 0.065
-dependencies: ["numpy"]
-connectors: ["git-repo", "google", "notion", "web-search"]
+dependencies:
+- numpy
+connectors:
+- git-repo
+- google
+- notion
+- web-search
 provider: openai
+version: 2.1.0
+precedes:
+- family-brain-wiki
+- jspace-inspector
+requires:
+- memory-router
+- safety-scanner
+complementary:
+- family-brain-wiki
 ---
-
 
 # OpenWiki Sync
 Bridges langchain-ai/openwiki personal brain into Ava S2.
