@@ -1,13 +1,27 @@
 # Solo personal project, no connection to employer, built with public/free-tier only
 """safety-scanner: Blackmail/leverage detection Critic hl30 early warning 4-5 tok + Llama Guard 3 ONNX small
-v2.1.0 — Llama Guard 3 ONNX small upgrade: F1 0.939 vs Guard2 0.877, AUPRC 0.985 vs 0.927, FPR 0.040 vs 0.081
-Target AUC 0.91->0.94 early 4-5 tok, Critic hl30 safety_concepts 1.0
+v2.1.0 — design targets (from the Llama Guard 3 paper, NOT measured here): F1 0.939 vs
+Guard2 0.877, AUPRC 0.985 vs 0.927, FPR 0.040 vs 0.081; target AUC 0.91->0.94 early 4-5 tok.
+Emitted auc/auprc/fpr are always computed from the actual (score, label) points of the run.
 Public pip only: onnxruntime, transformers optional
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
-import re, random, math, os, pathlib
+from typing import Any, Dict, List, Optional, Sequence
+import re, random, pathlib
+
+def describe() -> Dict[str, Any]:
+    """Routing metadata read from SKILL.md frontmatter — the single source of truth."""
+    here = pathlib.Path(__file__).resolve().parent
+    try:
+        from skills.loader import describe_from_manifest
+    except ImportError:  # loaded standalone without the skills package on sys.path
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_ava_skills_loader", here.parent / "loader.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        describe_from_manifest = mod.describe_from_manifest
+    return describe_from_manifest(here)
 
 # --- Legacy regex fallback (Guard2 baseline) ---
 SAFETY_PATTERNS = [
@@ -17,12 +31,61 @@ SAFETY_PATTERNS = [
 BENIGN_PATTERNS = [r"\bhello\b", r"\bplease\b", r"\bthank\b"]
 
 def _regex_safety_score(text: str) -> float:
+    """Deterministic regex baseline: same text always yields the same score."""
     text_l = text.lower()
     score = 0.0
     for pat in SAFETY_PATTERNS:
         if re.search(pat, text_l):
             score += 0.3
-    return min(1.0, score + random.uniform(0,0.05))
+    return min(1.0, score)
+
+
+# --- Real classification metrics, computed from actual (score, label) points ---
+
+def roc_auc(y_true: Sequence[int], y_score: Sequence[float]) -> float:
+    """ROC-AUC via pairwise concordance: P(score_pos > score_neg), ties count 0.5.
+
+    Exact for any sample size; pure Python, no dependencies.
+    """
+    pos = [s for s, y in zip(y_score, y_true) if y == 1]
+    neg = [s for s, y in zip(y_score, y_true) if y == 0]
+    if not pos or not neg:
+        raise ValueError("roc_auc needs at least one positive and one negative label")
+    concordant = 0.0
+    for p in pos:
+        for n in neg:
+            if p > n:
+                concordant += 1.0
+            elif p == n:
+                concordant += 0.5
+    return concordant / (len(pos) * len(neg))
+
+
+def auprc(y_true: Sequence[int], y_score: Sequence[float]) -> float:
+    """Area under the precision-recall curve (average precision).
+
+    Standard AP: sort by score descending, AP = sum over each positive of the
+    precision at its rank, divided by the number of positives.
+    """
+    n_pos = sum(1 for y in y_true if y == 1)
+    if n_pos == 0:
+        raise ValueError("auprc needs at least one positive label")
+    ranked = sorted(zip(y_score, y_true), key=lambda t: t[0], reverse=True)
+    tp = 0
+    ap = 0.0
+    for rank, (_, y) in enumerate(ranked, start=1):
+        if y == 1:
+            tp += 1
+            ap += tp / rank
+    return ap / n_pos
+
+
+def fpr_at(y_true: Sequence[int], y_score: Sequence[float], threshold: float = 0.5) -> float:
+    """False-positive rate at a decision threshold: fraction of negatives flagged unsafe."""
+    neg = [s for s, y in zip(y_score, y_true) if y == 0]
+    if not neg:
+        raise ValueError("fpr_at needs at least one negative label")
+    return sum(1 for s in neg if s >= threshold) / len(neg)
 
 # --- Llama Guard 3 ONNX small mock ---
 # Real production would load: meta-llama/Llama-Guard-3-1B quantized ONNX via onnxruntime
@@ -119,6 +182,7 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", text: str 
         onnx_session = _try_load_guard3_onnx(kw.get("guard3_path"))
 
     if mode=="mock":
+        random.seed(kw.get("seed", 5))  # deterministic mock scorer noise per seed
         scenarios = kw.get("scenarios")
         if scenarios is None:
             scenarios = [
@@ -141,42 +205,36 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", text: str 
                 scores.append(prob)
                 detailed.append({"text": s[:60], "prob": round(prob,3), "cats": [], "lat": 2.0})
 
-        # AUC calc with improved Guard3 distribution
-        # Ground truth: first, third, fifth, sixth are unsafe (1), second and fourth benign (0)
-        y_true = [1,0,1,0,1,1]
-        # simulate AUC improvement: Guard3 0.939 vs 0.877
-        random.seed(kw.get("seed",5)+len(text or ""))
-        if use_guard3:
-            auc = 0.936 + random.uniform(-0.02, 0.02)  # target 0.91->0.94, F1 0.939
-            auprc = 0.983 + random.uniform(-0.01, 0.015)
-            fpr = 0.040 + random.uniform(-0.01,0.01)
-        else:
-            auc = 0.877 + random.uniform(-0.03,0.03)
-            auprc = 0.927 + random.uniform(-0.02,0.02)
-            fpr = 0.081 + random.uniform(-0.01,0.01)
+        # Metrics computed from the ACTUAL per-scenario scores above against ground truth.
+        # Ground truth for the default 6 scenarios: 1st/3rd/5th/6th unsafe, 2nd/4th benign.
+        y_true = kw.get("y_true", [1,0,1,0,1,1])
+        if len(y_true) != len(scores):
+            raise ValueError(f"y_true has {len(y_true)} labels for {len(scores)} scenarios")
+        auc_val = roc_auc(y_true, scores)
+        auprc_val = auprc(y_true, scores)
+        fpr_val = fpr_at(y_true, scores, threshold=0.5)
 
-        if abs(auc-0.91) <0.001: auc+=0.002
-        if abs(auc-0.94) <0.001: auc+=0.003
-
-        early_offset = random.uniform(3.8,4.9)  # early 4-5 tok
+        early_offset = random.uniform(3.8,4.9)  # simulated early-warning offset (mock only, seeded)
 
         measured={
-            "auc": round(auc,4),
-            "auprc": round(auprc,4),
-            "fpr": round(fpr,4),
+            "auc": round(auc_val,4),
+            "auprc": round(auprc_val,4),
+            "fpr": round(fpr_val,4),
             "early_offset": round(early_offset,2),
             "scores": [round(s,3) for s in scores],
             "detailed": detailed,
             "hl":30,
-            "target_auc": 0.94,
-            "target_f1": 0.939,
-            "baseline_f1": 0.877,
-            "model": "llama-guard-3-1b-onnx" if use_guard3 else "regex",
+            "model": "llama-guard-3-1b-onnx-mock" if use_guard3 else "regex",
             "onnx_available": _lazy_onnx() is not None,
             "safety_concepts": ["blackmail","threat","leverage","danger"],
             "latency_p50_ms": round(sum(d["lat"] for d in detailed)/len(detailed),1) if detailed else 15
         }
-        return {"skill":"safety-scanner","mode":"mock","measured":measured,"pass": auc>0.65 and early_offset>=3.5 and early_offset<=5.5, "bar":"AUC>0.65 and early 4-5 tok Guard3 F1 0.939","guard3": use_guard3}
+        # Paper/design numbers live OUTSIDE measured — they are aspirations, not measurements.
+        targets = {"target_auc": 0.94, "target_f1": 0.939, "baseline_f1": 0.877,
+                   "target_auprc": 0.985, "target_fpr": 0.040}
+        return {"skill":"safety-scanner","mode":"mock","measured":measured,"targets":targets,
+                "pass": auc_val>0.65 and early_offset>=3.5 and early_offset<=5.5,
+                "bar":"AUC>0.65 and early 4-5 tok","guard3": use_guard3}
     # real path
     try:
         txt = text or kw.get("query","") or ""

@@ -11,12 +11,8 @@ broadcast_target: 0.22
 reportability_target: 0.065
 dependencies:
 - numpy
-connectors:
-- git-repo
-- google
-- notion
-- web-search
-provider: openai
+connectors: []
+provider: none
 version: 2.1.0
 precedes:
 - eval-harness-runner
@@ -28,19 +24,10 @@ complementary:
 ---
 
 # Code Bench
-Exec verified
 
-## Install
-
-```bash
-openwiki code --init # for repo docs in openwiki/ 
-openwiki personal --init # for personal brain ~/.openwiki/wiki from git, gmail, notion etc
-openwiki auth gmail # saves to ~/.openwiki/.env, then ingest directly with no MCP
-openwiki ingest all # reads ~/.openwiki/connectors/<connector>/raw/ then synthesizes wiki
-```
-
-CI keeps docs fresh: copy openwiki-update.yml into .github/workflows/openwiki-update.yml and use openwiki code --update --print in CI without init.
-
-Secrets are referenced by env var name and stored in ~/.openwiki/.env; config files never contain raw secret values.
+Runs candidate Python snippets in a subprocess sandbox (`exec_verify`) and checks stdout
+against expected output. Mock mode exec-verifies a small built-in task set and reports the
+real pass rate; real mode refuses until a model `generate()` path is wired into the same
+`exec_verify` loop. Run with `python -m skills.loader run code-bench --mode mock`.
 
 Solo personal project, no connection to employer, built with public/free-tier only.

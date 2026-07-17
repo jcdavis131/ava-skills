@@ -10,9 +10,13 @@ Inspired by `cursor-agent-skills` (42 skills) but purpose-built for Ava's Global
 
 ```bash
 pip install -e .
-python -m skills.loader --list
-python -m skills.loader --load openwiki-sync --target S2
-python skills/openwiki-sync/skill.py --wiki-path ~/.openwiki/wiki
+
+python -m skills.loader list                # all skills in topological order, with metadata
+python -m skills.loader graph               # Tool Graph (precedes/requires/complementary) + topo order
+python -m skills.loader rerank "inspect jspace safety"   # wRRF-ranked skills for a query
+python -m skills.loader run openwiki-sync --mode mock --wiki-path ~/.openwiki/wiki
+python -m skills.loader run-graph --query "safety check then inspect jspace"
+python -m skills.loader test                # smoke-run every skill in mock mode
 ```
 
 ## Skill Format
@@ -33,16 +37,20 @@ version: 0.1.0
 
 ## 9 Starter Skills
 
+Values below mirror each skill's `SKILL.md` frontmatter — the single source of truth
+(`describe()` reads the manifest at runtime, so code and docs cannot drift).
+
 | Skill | J-Target | hl | Purpose |
 |---|---|---|---|
-| jspace-inspector | Router | 50 | Inspect S1/S2/Critic/Planner slots, top_concepts, broadcast 20% |
+| jspace-inspector | Planner | 150 | Inspect S1/S2/Critic/Planner slots; real mode runs the 5 canonical J-tests via ava-open-harness |
 | openwiki-sync | S2 | 300 | Sync ~/.openwiki/wiki into S2 verbalizable concepts |
-| logic-prover | S2 | 300 | Synthetic logic textbook generation (Phase0 Phi Method B) |
-| code-bench | Planner | 150 | Exec-verified Python generation |
-| safety-scanner | Critic | 30 | Blackmail/leverage detection, AUC 0.91→0.94 early 4-5 tok |
-| memory-router | Router | 80 | Route S1/S2/Planner with KL w0.4 + inter-MI cos 0.45 |
-| eval-harness-runner | Router | 80 | Run ava-open-harness evals |
-| family-brain-wiki | S2 | 300 | Bridge to family-brain-os WikiTab |
+| logic-prover | S2 | 300 | Synthetic logic corpus generation (truth tables + syllogisms, JSONL) |
+| code-bench | S2 | 350 | Exec-verified Python generation |
+| safety-scanner | Critic | 30 | Blackmail/leverage detection; AUC/AUPRC/FPR computed from each run's scores |
+| memory-router | Router | 30 | ShardMemo Tier A/B/C scoping + S1/S2/Planner routing with real KL vs branch bias |
+| memory-mint | Router | 30 | Trace-capture -> shard-mint ingestion pipeline feeding memory-router |
+| eval-harness-runner | Planner | 150 | Run ava-open-harness evals, gate on all requested evals passing |
+| family-brain-wiki | S2 | 300 | Bridge family-brain-os WikiTab pages (localStorage JSON export) into S2 |
 
 ## Architecture
 

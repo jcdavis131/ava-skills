@@ -5,13 +5,18 @@ from typing import Any, Dict, List
 import os, pathlib, re
 
 def describe() -> Dict[str, Any]:
-    return {
-        "name": "openwiki-sync",
-        "description": "Sync OpenWiki personal wiki (~/.openwiki/wiki) into S2 Slow hl300 verbalizable memory",
-        "j_space_target": "S2",
-        "half_life": 300,
-        "triggers": ["openwiki", "wiki", "personal brain", "sync wiki", "~/.openwiki"],
-    }
+    """Routing metadata read from SKILL.md frontmatter — the single source of truth."""
+    from pathlib import Path
+    here = Path(__file__).resolve().parent
+    try:
+        from skills.loader import describe_from_manifest
+    except ImportError:  # loaded standalone without the skills package on sys.path
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_ava_skills_loader", here.parent / "loader.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        describe_from_manifest = mod.describe_from_manifest
+    return describe_from_manifest(here)
 
 def _scan_wiki(wiki_path: str | None) -> List[pathlib.Path]:
     candidates = []

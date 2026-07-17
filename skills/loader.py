@@ -29,6 +29,28 @@ def _parse_frontmatter(text: str) -> tuple[Dict[str,Any], str]:
                 fm[k.strip()] = v.strip().strip('"').strip("'")
     return fm, body
 
+def describe_from_manifest(skill_dir: str | pathlib.Path) -> Dict[str, Any]:
+    """Build a skill's describe() payload from its SKILL.md frontmatter.
+
+    The manifest is the single source of truth for routing metadata
+    (j_space_target, half_life, triggers, graph edges); skill.py modules call
+    this instead of hardcoding values that can drift from the manifest.
+    """
+    skill_dir = pathlib.Path(skill_dir)
+    md = skill_dir / "SKILL.md"
+    meta, _ = _parse_frontmatter(md.read_text(encoding="utf-8", errors="ignore"))
+    return {
+        "name": meta.get("name", skill_dir.name),
+        "description": meta.get("description", ""),
+        "j_space_target": meta.get("j_space_target", "Router"),
+        "half_life": int(meta.get("half_life", meta.get("half-life", 80))),
+        "triggers": meta.get("triggers", []) or [],
+        "version": meta.get("version", "1.0.0"),
+        "precedes": meta.get("precedes", []) or [],
+        "requires": meta.get("requires", []) or [],
+        "complementary": meta.get("complementary", []) or [],
+    }
+
 class Skill:
     def __init__(self, name: str, path: pathlib.Path, meta: Dict[str,Any], body: str):
         self.name = name
@@ -105,7 +127,6 @@ class SkillLoader:
     def build_tool_graph(self) -> Dict[str, Dict[str, List[str]]]:
         """Build Tool Graph RAG with PRECEDES/REQUIRES/COMPLEMENTARY edges.
         Returns {skill: {precedes, requires, complementary}}
-        Target: wRRF 82% + token cut via progressive disclosure.
         """
         graph = {}
         for name, skill in self.skills.items():
@@ -159,20 +180,24 @@ class SkillLoader:
 
     def wrrf_rerank(self, query: str, k: int = 60, weights: Dict[str,float] | None = None) -> List[Tuple[str,float]]:
         """Weighted Reciprocal Rank Fusion for Tool Graph RAG.
-        Combines multiple ranking signals:
-        - trigger match score (BM25F-like)
-        - broadcast_target proximity to 0.22
-        - half_life decay relevance
-        Target: 82% accuracy +79% token cut via progressive disclosure.
+        Combines three ranking signals:
+        - trigger match score (BM25F-like overlap with triggers + description)
+        - half_life decay relevance (prefer hl matched to query complexity)
+        - graph centrality (complementary + precedes degree)
+        A former fourth signal — broadcast_target proximity to 0.22 — was removed:
+        every manifest sets broadcast_target to exactly 0.22, so the signal was a
+        constant 1.0 (identical rank for all skills, pure dead weight). Its 0.2
+        fusion weight was redistributed to the trigger (+0.1) and graph (+0.1)
+        signals. No accuracy/token-savings figures are claimed here: none have
+        been measured for this reranker.
         Returns list of (skill_name, fused_score) sorted descending.
         """
         if weights is None:
-            weights = {"trigger": 0.5, "broadcast": 0.2, "hl": 0.15, "graph": 0.15}
+            weights = {"trigger": 0.6, "hl": 0.15, "graph": 0.25}
 
         q_lower = query.lower()
         # Compute per-signal rankings
         trigger_scores: Dict[str, float] = {}
-        broadcast_scores: Dict[str, float] = {}
         hl_scores: Dict[str, float] = {}
 
         for name, skill in self.skills.items():
@@ -183,9 +208,6 @@ class SkillLoader:
             desc = skill.meta.get("description","").lower()
             overlap += sum(0.5 for tok in q_lower.split() if tok in desc)
             trigger_scores[name] = overlap + 0.1  # smoothing
-
-            # broadcast proximity to ideal 0.22
-            broadcast_scores[name] = 1.0 - abs(skill.broadcast_target - 0.22)
 
             # half-life relevance: prefer hl close to query complexity (long query -> high hl)
             q_len = len(q_lower.split())
@@ -198,7 +220,6 @@ class SkillLoader:
             return {name: rank+1 for rank, (name, _) in enumerate(sorted_names)}
 
         r_trigger = rank_dict(trigger_scores)
-        r_broadcast = rank_dict(broadcast_scores)
         r_hl = rank_dict(hl_scores)
 
         # Graph centrality: complementary degree
@@ -212,7 +233,6 @@ class SkillLoader:
         for name in self.skills:
             fused[name] = (
                 weights["trigger"] / (k + r_trigger.get(name, 999)) +
-                weights["broadcast"] / (k + r_broadcast.get(name, 999)) +
                 weights["hl"] / (k + r_hl.get(name, 999)) +
                 weights["graph"] / (k + r_graph.get(name, 999))
             )
@@ -246,8 +266,6 @@ class SkillLoader:
     def run(self, name: str, **kwargs) -> Dict[str,Any]:
         if name not in self.skills:
             raise KeyError(f"skill {name!r} not found, available {list(self.skills.keys())}")
-        # Scope-before-routing: check requirements first (ShardMemo Tier A/B/C)
-        # Tier A: safety always first, Tier B: memory routing, Tier C: domain skills
         return self.skills[name].run(**kwargs)
 
     def run_with_graph(self, query: str, **kwargs) -> List[Dict[str,Any]]:
@@ -270,6 +288,14 @@ class SkillLoader:
         topo = self.topological_sort()
         ordered = [n for n in topo if n in expanded]
 
+        # Scope-before-routing, Tier A: the safety gate always executes first when it
+        # is part of the resolved graph. Topo order already places it before its
+        # dependents, but Kahn's sorted queue can emit unrelated zero-in-degree
+        # skills (e.g. memory-mint) ahead of it; pin it to position 0 explicitly.
+        if "safety-scanner" in ordered and ordered[0] != "safety-scanner":
+            ordered.remove("safety-scanner")
+            ordered.insert(0, "safety-scanner")
+
         results = []
         for name in ordered:
             try:
@@ -282,7 +308,7 @@ class SkillLoader:
 def main():
     import argparse
     ap = argparse.ArgumentParser(description="ava-skills loader v2.1.0 with Tool Graph RAG + wRRF + ShardMemo")
-    ap.add_argument("cmd", nargs="?", default="list", help="list|run|test|graph|rerank")
+    ap.add_argument("cmd", nargs="?", default="list", help="list|graph|rerank|run|run-graph|test")
     ap.add_argument("skill", nargs="?", help="skill name or query for rerank")
     ap.add_argument("--mode", default="mock")
     ap.add_argument("--wiki-path", default=None)

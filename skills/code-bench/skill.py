@@ -1,11 +1,22 @@
 # Solo personal project, no connection to employer, built with public/free-tier only
 """code-bench: Exec-verified Python generation (P2 code)"""
 from __future__ import annotations
-from typing import Any, Dict, List
-import subprocess, tempfile, pathlib, random, textwrap
+from typing import Any, Dict
+import subprocess, tempfile, pathlib
 
-def describe():
-    return {"name":"code-bench","description":"Exec-verified Python generation (P2 code)","j_space_target":"Planner","half_life":150,"triggers":["code","bench","exec"]}
+def describe() -> Dict[str, Any]:
+    """Routing metadata read from SKILL.md frontmatter — the single source of truth."""
+    from pathlib import Path
+    here = Path(__file__).resolve().parent
+    try:
+        from skills.loader import describe_from_manifest
+    except ImportError:  # loaded standalone without the skills package on sys.path
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_ava_skills_loader", here.parent / "loader.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        describe_from_manifest = mod.describe_from_manifest
+    return describe_from_manifest(here)
 
 def exec_verify(code: str, timeout: int = 3) -> Dict[str,Any]:
     with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as tf:
@@ -30,7 +41,6 @@ TASKS = [
 
 def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw):
     if mode=="mock":
-        random.seed(kw.get("seed",2))
         passes=0
         results=[]
         for name,code,expected in TASKS:
