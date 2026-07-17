@@ -36,10 +36,16 @@ def _gen_pages_from_state(state: Dict[str,Any] | None) -> List[Dict[str,str]]:
 
 def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw):
     import random
+    if mode != "mock":
+        # Simulated mass must never be labeled real (previous code passed mode through,
+        # so mode="real" returned a random number presented as a live measurement).
+        return {"skill":"family-brain-wiki","mode":"real","measured":None,"pass":False,
+                "bar":"mass>=0.06",
+                "error":"real mode not implemented: S2 injection mass needs a live model readout"}
     random.seed(kw.get("seed",7))
     wiki_info = _scan_family_wiki()
     pages = _gen_pages_from_state(kw.get("state"))
-    # simulate S2 injection mass
+    # simulate S2 injection mass (mock only)
     mass = 0.06 + random.uniform(0,0.08) + 1e-5*len(pages)
     measured={"n_wiki_sources": len(wiki_info), "n_pages_generated": len(pages), "reportability_mass": mass, "pages": [p["title"] for p in pages], "sources": wiki_info[:3], "storage_key":"family-brain-wiki-pages:v1"}
-    return {"skill":"family-brain-wiki","mode":mode,"measured":measured,"pass": mass>=0.06,"bar":"mass>=0.06","wiki_pages": pages}
+    return {"skill":"family-brain-wiki","mode":"mock","measured":measured,"pass": mass>=0.06,"bar":"mass>=0.06","wiki_pages": pages}

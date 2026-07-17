@@ -52,7 +52,16 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", wiki_path:
                 concepts.extend(_extract_concepts(f.read_text(errors="ignore")))
             except Exception:
                 continue
-        mass=0.072 if concepts else 0.0
-        return {"skill":"openwiki-sync","mode":"real","measured":{"n_files":len(files),"n_concepts":len(concepts),"reportability_mass":mass},"pass":mass>=0.06,"bar":"mass>=0.06"}
+        # Honest real-mode metric: concept density actually derived from the scanned wiki
+        # (concepts per file, capped), not the previous fabricated constant 0.072. The
+        # true S2-injection reportability mass still requires a live model readout — that
+        # limitation is carried in the record so the harness can distinguish the two.
+        density = (len(concepts) / max(1, len(files)))
+        mass = min(0.20, 0.01 * density) if concepts else 0.0
+        return {"skill":"openwiki-sync","mode":"real",
+                "measured":{"n_files":len(files),"n_concepts":len(concepts),
+                             "concept_density":density,"reportability_mass":mass,
+                             "mass_basis":"concept-density proxy; live S2 readout not wired"},
+                "pass":mass>=0.06,"bar":"mass>=0.06 (density proxy)"}
     except Exception as e:
         return {"skill":"openwiki-sync","error":str(e),"pass":False}

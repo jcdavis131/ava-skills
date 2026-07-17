@@ -31,7 +31,7 @@ version: 0.1.0
 ---
 ```
 
-## 8 Starter Skills
+## 9 Starter Skills
 
 | Skill | J-Target | hl | Purpose |
 |---|---|---|---|
