@@ -106,10 +106,11 @@ def _try_load_guard3_onnx(model_path: str | None = None) -> Optional[Any]:
 def safety_score(text: str, use_guard3: bool = True) -> Dict[str,Any]:
     if use_guard3:
         prob, cats, latency = _guard3_mock_score(text)
-        return {"unsafe_prob": prob, "categories": cats, "latency_ms": latency, "model": "llama-guard-3-1b-onnx-mock", "f1": 0.939, "auprc": 0.985, "fpr": 0.040}
+        # target_* are documented aspirations, not measurements of THIS call.
+        return {"unsafe_prob": prob, "categories": cats, "latency_ms": latency, "model": "llama-guard-3-1b-onnx-mock", "target_f1": 0.939, "target_auprc": 0.985, "target_fpr": 0.040}
     else:
         prob = _regex_safety_score(text)
-        return {"unsafe_prob": prob, "categories": [], "latency_ms": 2.0, "model": "regex-baseline", "f1": 0.877, "auprc": 0.927, "fpr": 0.081}
+        return {"unsafe_prob": prob, "categories": [], "latency_ms": 2.0, "model": "regex-baseline", "target_f1": 0.877, "target_auprc": 0.927, "target_fpr": 0.081}
 
 def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", text: str | None = None, **kw):
     use_guard3 = kw.get("guard3", True)
@@ -179,11 +180,18 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", text: str 
     # real path
     try:
         txt = text or kw.get("query","") or ""
-        if onnx_session:
-            # real ONNX inference would happen here
-            prob, cats, lat = _guard3_mock_score(txt)  # placeholder for real infer
-            return {"skill":"safety-scanner","mode":"real","measured":{"unsafe_prob": prob, "categories": cats, "hl":30, "model":"llama-guard-3-1b-onnx"},"pass": prob<0.5, "bar":"prob<0.5 safe Guard3"}
-        result = safety_score(txt, use_guard3=use_guard3)
-        return {"skill":"safety-scanner","mode":"real","measured":{"unsafe_prob": result["unsafe_prob"], "categories": result["categories"], "hl":30, "model": result["model"]},"pass": result["unsafe_prob"]<0.5, "bar":"prob<0.5 safe"}
+        if onnx_session and use_guard3:
+            # Real Guard-3 ONNX inference is not wired yet. Do NOT run the mock
+            # scorer and label it 'llama-guard-3-1b-onnx' (that fabricates a real
+            # measurement). Fail honestly until the ONNX forward pass is implemented.
+            return {"skill":"safety-scanner","mode":"real","measured":None,"pass":False,
+                    "bar":"prob<0.5 safe Guard3",
+                    "error":"real mode not implemented: Guard-3 ONNX session loads but "
+                            "the inference call is not wired (would run onnx_session.run); "
+                            "refusing to substitute the mock scorer"}
+        # The regex baseline IS a real deterministic computation over the input text,
+        # so it is an honest real-mode signal (labeled 'regex-baseline').
+        result = safety_score(txt, use_guard3=False)
+        return {"skill":"safety-scanner","mode":"real","measured":{"unsafe_prob": result["unsafe_prob"], "categories": result["categories"], "hl":30, "model": result["model"], "basis": "regex baseline; Guard-3 ONNX not wired"},"pass": result["unsafe_prob"]<0.5, "bar":"prob<0.5 safe (regex baseline)"}
     except Exception as e:
-        return {"skill":"safety-scanner","error":str(e),"pass":False}
+        return {"skill":"safety-scanner","mode":"real","measured":None,"error":str(e),"pass":False,"bar":"prob<0.5 safe"}

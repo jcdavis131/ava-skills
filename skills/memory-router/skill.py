@@ -118,7 +118,42 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", instructio
         "shardmemo": shardmemo,
         "scope_before_routing": True,
         "vecscan_reduction": shardmemo["vecscan_reduction"],
-        "f1_improvement": 6.87,
+        "target_f1_improvement": 6.87,  # design target, NOT a measurement — kept out of measured semantics
     }
+    measured["recalled_memories"] = _recall_minted(query, limit=int(kw.get("memory_limit", 3)),
+                                                   store_dir=kw.get("memory_store_dir"))
     passed = kl < 1.0
     return {"skill":"memory-router","mode":mode,"measured":measured,"pass":passed,"bar":"kl<1.0 + ShardMemo Tier A/B/C","shardmemo":shardmemo}
+
+
+def _recall_minted(instruction: str, limit: int = 3, store_dir=None) -> List[Dict[str, Any]]:
+    """Retrieval half of the memory layer: read shards written by the memory-mint skill.
+
+    Same Tier-B scoping in both directions (mint tags with our _shardmemo_scope_before_routing;
+    query re-derives the scope from the instruction), so recall only touches one shard file.
+    Degrades to [] when memory-mint isn't installed or the store is empty — routing output is
+    unchanged except for this additive key.
+    """
+    try:
+        import importlib.util
+        import sys
+        from pathlib import Path
+        name = "ava_memory_mint_skill"
+        if name in sys.modules:
+            mint = sys.modules[name]
+        else:
+            mint_path = Path(__file__).resolve().parent.parent / "memory-mint" / "skill.py"
+            spec = importlib.util.spec_from_file_location(name, mint_path)
+            if spec is None or spec.loader is None:
+                return []
+            mint = importlib.util.module_from_spec(spec)
+            sys.modules[name] = mint  # required before exec: dataclasses resolve cls.__module__
+            spec.loader.exec_module(mint)
+        store = mint.ShardStore(Path(store_dir)) if store_dir else mint.ShardStore()
+        return [
+            {"instruction": r["instruction"], "outcome": r["outcome"],
+             "branch": r["branch"], "tier_b_scope": r["tier_b_scope"]}
+            for r in store.query(instruction=instruction, limit=limit)
+        ]
+    except Exception:
+        return []

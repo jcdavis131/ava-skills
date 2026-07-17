@@ -40,5 +40,9 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw):
             results.append({"task":name,"ok":ok,"stdout":r.get("stdout","")[:100]})
         measured={"pass_rate": passes/len(TASKS), "results": results, "bias_target":"code_branch [0.25,0.45,0.05,0.25]"}
         return {"skill":"code-bench","mode":"mock","measured":measured,"pass": measured["pass_rate"]>=0.5,"bar":"pass_rate>=0.5"}
-    # real would generate with model then verify
-    return {"skill":"code-bench","mode":"real","measured":{"pass_rate":0.8},"pass":True,"bar":"pass_rate>=0.5"}
+    # Real mode needs model generations fed through the same exec_verify() loop above.
+    # Until a generate() path is wired, fail honestly — never report an invented pass_rate.
+    return {"skill":"code-bench","mode":"real","measured":None,"pass":False,
+            "bar":"pass_rate>=0.5",
+            "error":"real mode not implemented: generate solutions with the model, then "
+                    "exec_verify() them exactly like the mock path (previous constant 0.8 was fabricated)"}

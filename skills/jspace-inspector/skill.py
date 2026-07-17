@@ -43,11 +43,15 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", eval_name:
         passed = (0.02 <= mass <= 0.20)
         return {"skill":"jspace-inspector","mode":"mock","measured":measured,"pass":passed,"bar":"mass in [0.02,0.20] and broadcast 20% target","eval_requested": eval_name}
 
-    # real mode would hook model.multi_jspace
+    # real mode delegates to the harness; propagate its full record (incl. the
+    # honest-failure 'error' explanation) rather than stripping it — a bare
+    # measured=None FAIL is indistinguishable from a genuinely measured failure.
     try:
-        # try harness
-        from harness.evals.jspace_tests import spider_ant, france_china
+        from harness.evals.jspace_tests import spider_ant
         res = spider_ant(model, tokenizer, device=kw.get("device","cpu"))
-        return {"skill":"jspace-inspector","mode":"real","measured":res.get("measured",{}),"pass":res.get("pass",False),"bar":res.get("bar","")}
+        return {"skill":"jspace-inspector","mode":"real",
+                "measured":res.get("measured"),"pass":res.get("pass",False),
+                "bar":res.get("bar",""),"error":res.get("error")}
     except Exception as e:
-        return {"skill":"jspace-inspector","mode":"real","error":str(e),"pass":False}
+        return {"skill":"jspace-inspector","mode":"real","measured":None,"pass":False,
+                "bar":"","error":str(e)}
