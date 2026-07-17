@@ -21,8 +21,10 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw):
         total = res["meta"]["total"]
         return {"skill":"eval-harness-runner","mode":mode,"measured":{"passed":passed,"total":total,"wall_s":res["meta"].get("wall_s",0),"results":res["evals"]},"pass": passed>=3,"bar":">=3 evals PASS"}
     except Exception as e:
-        # fallback mock
-        import random
-        random.seed(kw.get("seed",6))
-        passed = random.randint(3,5)
-        return {"skill":"eval-harness-runner","mode":mode,"measured":{"passed":passed,"total":5,"error":str(e)[:200]},"pass": passed>=3,"bar":">=3 evals PASS (mock fallback)"}
+        # Honest failure — NEVER fabricate a pass count. Previously this returned
+        # random.randint(3,5) (always >=3 => guaranteed pass), which turned the
+        # upstream anti-fabrication RuntimeError into a fake real-mode PASS: exactly
+        # the antipattern the harness exists to prevent.
+        return {"skill":"eval-harness-runner","mode":mode,"measured":None,"pass":False,
+                "bar":">=3 evals PASS",
+                "error":f"harness could not run in mode={mode}: {str(e)[:200]}"}

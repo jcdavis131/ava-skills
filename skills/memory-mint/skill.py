@@ -234,8 +234,12 @@ class MemoryMintPipeline:
         self._batch_size = batch_size
         self._idle_flush_s = idle_flush_s
         self._stop = threading.Event()
-        self._drained = threading.Event()
-        self._drained.set()
+        # Reliable barrier via an explicit pending-work counter under a Condition.
+        # (An Event set on `q.empty()` races: the worker can observe empty and set it
+        # between a producer's put and the item being minted, so flush() would return
+        # with the event still unminted.)
+        self._cond = threading.Condition()
+        self._pending = 0  # items enqueued-but-not-yet-minted
         self.stats = {"captured": 0, "dropped": 0, "minted": 0, "deduped": 0}
         self._stats_lock = threading.Lock()
         self._worker = threading.Thread(target=self._run, name="memory-mint", daemon=True)
@@ -247,15 +251,18 @@ class MemoryMintPipeline:
         while True:
             try:
                 self._q.put_nowait(event)
+                with self._cond:
+                    self._pending += 1
                 break
             except queue.Full:
                 try:
-                    self._q.get_nowait()  # shed oldest
+                    self._q.get_nowait()  # shed oldest (it will not be minted)
+                    with self._cond:
+                        self._pending -= 1
                     with self._stats_lock:
                         self.stats["dropped"] += 1
                 except queue.Empty:  # pragma: no cover - race, retry put
                     continue
-        self._drained.clear()
         with self._stats_lock:
             self.stats["captured"] += 1
         return True
@@ -271,10 +278,13 @@ class MemoryMintPipeline:
             except queue.Empty:
                 pass  # idle timeout — flush whatever we have
             if batch:
+                n = len(batch)
                 self._mint_batch(batch)
                 batch = []
-            if self._q.empty():
-                self._drained.set()
+                with self._cond:
+                    self._pending -= n
+                    if self._pending <= 0:
+                        self._cond.notify_all()
 
     def _mint_batch(self, batch: Iterable[TraceEvent]) -> None:
         for event in batch:
@@ -285,8 +295,13 @@ class MemoryMintPipeline:
 
     # -- lifecycle -------------------------------------------------------------------
     def flush(self, timeout: float = 5.0) -> bool:
-        """Block (caller-side only) until every captured event is minted. For tests/shutdown."""
-        return self._drained.wait(timeout=timeout)
+        """Block (caller-side only) until every captured event is minted. For tests/shutdown.
+
+        Reliable: waits on the pending counter, which is decremented only AFTER minting,
+        so a True return guarantees every captured event is in the store.
+        """
+        with self._cond:
+            return self._cond.wait_for(lambda: self._pending <= 0, timeout=timeout)
 
     def close(self, timeout: float = 5.0) -> None:
         self.flush(timeout=timeout)
@@ -353,14 +368,22 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw) -> D
 
     minted_ratio = stats["minted"] / max(1, stats["captured"])
     retrieval_hit = 1.0 if any("dedupe a list" in r["instruction"] for r in hits) else 0.0
-    measured = round((minted_ratio + retrieval_hit + (1.0 if tier_a_ok else 0.0)) / 3.0, 4)
+    roundtrip = round((minted_ratio + retrieval_hit + (1.0 if tier_a_ok else 0.0)) / 3.0, 4)
+    # SKILL_SPEC contract: `measured` is a dict of floats, `bar` a string threshold.
+    measured = {
+        "roundtrip_score": roundtrip,
+        "minted_ratio": round(minted_ratio, 4),
+        "retrieval_hit": retrieval_hit,
+        "tier_a_scoped": 1.0 if tier_a_ok else 0.0,
+        "dropped": float(stats["dropped"]),
+    }
     return {
         "skill": "memory-mint",
         "measured": measured,
-        "pass": bool(flushed and measured >= 1.0 and stats["dropped"] == 0),
-        "bar": 1.0,
-        "detail": {"stats": stats, "flushed": flushed, "tier_a_scoped": tier_a_ok,
-                   "store_dir": store_dir, "schema_version": SCHEMA_VERSION},
+        "pass": bool(flushed and roundtrip >= 1.0 and stats["dropped"] == 0),
+        "bar": "roundtrip_score>=1.0 and dropped==0",
+        "detail": {"stats": stats, "flushed": flushed, "store_dir": store_dir,
+                   "schema_version": SCHEMA_VERSION},
     }
 
 

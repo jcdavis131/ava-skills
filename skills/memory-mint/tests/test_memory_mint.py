@@ -124,4 +124,7 @@ class TestSkillContract:
     def test_run_emits_harness_fields_and_passes(self, tmp_path):
         out = mm.run(store_dir=str(tmp_path))
         assert {"measured", "pass", "bar"} <= set(out)
-        assert out["pass"] is True and out["measured"] >= out["bar"] == 1.0
+        # SKILL_SPEC contract: measured is a dict of floats, bar is a string threshold.
+        assert isinstance(out["measured"], dict) and isinstance(out["bar"], str)
+        assert all(isinstance(v, float) for v in out["measured"].values())
+        assert out["pass"] is True and out["measured"]["roundtrip_score"] >= 1.0

@@ -56,12 +56,16 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", wiki_path:
         # (concepts per file, capped), not the previous fabricated constant 0.072. The
         # true S2-injection reportability mass still requires a live model readout — that
         # limitation is carried in the record so the harness can distinguish the two.
+        # concept_density is a real filesystem diagnostic, but reportability mass is
+        # an S2 forward-pass metric that is NOT wired. Report the diagnostic and FAIL
+        # honestly rather than passing a bar on an unmeasured proxy — matching
+        # code-bench / family-brain-wiki, so the honest-failure regime is uniform.
         density = (len(concepts) / max(1, len(files)))
-        mass = min(0.20, 0.01 * density) if concepts else 0.0
-        return {"skill":"openwiki-sync","mode":"real",
-                "measured":{"n_files":len(files),"n_concepts":len(concepts),
-                             "concept_density":density,"reportability_mass":mass,
-                             "mass_basis":"concept-density proxy; live S2 readout not wired"},
-                "pass":mass>=0.06,"bar":"mass>=0.06 (density proxy)"}
+        return {"skill":"openwiki-sync","mode":"real","measured":None,"pass":False,
+                "bar":"mass>=0.06",
+                "diagnostics":{"n_files":len(files),"n_concepts":len(concepts),
+                                "concept_density":density},
+                "error":"real mode not implemented: reportability mass needs a live S2 "
+                        "readout; concept_density is a filesystem diagnostic, not the metric"}
     except Exception as e:
-        return {"skill":"openwiki-sync","error":str(e),"pass":False}
+        return {"skill":"openwiki-sync","mode":"real","measured":None,"error":str(e),"pass":False,"bar":"mass>=0.06"}
