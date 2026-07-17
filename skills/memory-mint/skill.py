@@ -320,18 +320,16 @@ class MemoryMintPipeline:
 # ---------------------------------------------------------------------------
 
 def describe() -> Dict[str, Any]:
-    return {
-        "name": "memory-mint",
-        "description": "Trace-capture -> memory-mint ingestion pipeline; async, non-blocking, "
-                       "ShardMemo-scoped shards consumed by memory-router",
-        "j_space_target": "Router",
-        "half_life": 30,
-        "triggers": ["memory", "mint", "trace", "capture", "ingest", "shard"],
-        "version": SKILL_VERSION,
-        "precedes": ["memory-router"],
-        "requires": [],
-        "complementary": ["memory-router", "eval-harness-runner"],
-    }
+    """Routing metadata read from SKILL.md frontmatter — the single source of truth."""
+    here = Path(__file__).resolve().parent
+    try:
+        from skills.loader import describe_from_manifest
+    except ImportError:  # loaded standalone without the skills package on sys.path
+        spec = importlib.util.spec_from_file_location("_ava_skills_loader", here.parent / "loader.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        describe_from_manifest = mod.describe_from_manifest
+    return describe_from_manifest(here)
 
 
 def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw) -> Dict[str, Any]:
@@ -341,9 +339,20 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw) -> D
     events through the real queue/worker/store in a temp-or-configured directory and measure
     round-trip integrity.
     """
+    import contextlib
     import tempfile
 
-    store_dir = kw.get("store_dir") or tempfile.mkdtemp(prefix="ava-mint-")
+    with contextlib.ExitStack() as stack:
+        store_dir = kw.get("store_dir")
+        ephemeral = not store_dir
+        if ephemeral:
+            # Self-cleaning: without an explicit store_dir the exercise store is
+            # removed on exit (mkdtemp here used to leak one directory per run).
+            store_dir = stack.enter_context(tempfile.TemporaryDirectory(prefix="ava-mint-"))
+        return _run_exercise(store_dir, ephemeral)
+
+
+def _run_exercise(store_dir: str, ephemeral: bool) -> Dict[str, Any]:
     events = [
         TraceEvent(source="skill:code-bench", branch="code", ok=True,
                    instruction="write a python function to dedupe a list",
@@ -383,6 +392,7 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", **kw) -> D
         "pass": bool(flushed and roundtrip >= 1.0 and stats["dropped"] == 0),
         "bar": "roundtrip_score>=1.0 and dropped==0",
         "detail": {"stats": stats, "flushed": flushed, "store_dir": store_dir,
+                   "store_dir_ephemeral": ephemeral,  # ephemeral dirs are deleted on return
                    "schema_version": SCHEMA_VERSION},
     }
 

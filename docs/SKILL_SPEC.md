@@ -19,8 +19,8 @@ half_life: 300
 broadcast_target: 0.22
 reportability_target: 0.065
 dependencies: ["torch"] # pip names, optional
-connectors: ["git-repo", "google", "notion", "web-search", "hackernews"] # for openwiki personal mode
-provider: openai # openai, anthropic, openai-compatible, openai-chatgpt, etc
+connectors: [] # OpenWiki connector names IF the skill really uses them; every current skill uses none
+provider: none # LLM provider IF the skill really calls one; every current skill uses none
 ```
 
 ## J-Space mapping
@@ -71,8 +71,9 @@ return {"pass":True}
 ## Testing
 
 ```bash
-pytest skills/jspace-inspector/tests
-python -m skills.loader run jspace-inspector --mode mock --verbose
+python -m pytest tests/ skills/memory-mint/tests/ -q
+python -m skills.loader run jspace-inspector --mode mock
+python -m skills.loader test
 ```
 
 ## Harness gating
@@ -86,7 +87,8 @@ Runner will check anti-mock: no hardcoded 0.82 etc.
 
 ## CI
 
-Workflow `.github/workflows/openwiki-update.yml` runs `openwiki code --update --print` on schedule.
-
-Also runs harness gate: if harness PASS, merge auto.
+This repo currently has NO CI workflows (`.github/workflows/` does not exist; an earlier
+version of this doc referenced an `openwiki-update.yml` workflow that was never part of
+this repo). Gating is manual: run the pytest suites and `python -m skills.loader test`
+locally before merging.
 

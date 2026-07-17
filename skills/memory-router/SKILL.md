@@ -1,23 +1,21 @@
 ---
 name: memory-router
-description: Route between S1/S2/Planner bias control
+description: Route between S1/S2/Planner bias control + ShardMemo Tier A/B/C scope-before-routing
 triggers:
 - router
 - arbitration
 - bias
 - memory
+- shardmemo
+- scope
 j_space_target: Router
 half_life: 30
 broadcast_target: 0.22
 reportability_target: 0.065
 dependencies:
 - numpy
-connectors:
-- git-repo
-- google
-- notion
-- web-search
-provider: openai
+connectors: []
+provider: none
 version: 2.1.0
 precedes:
 - jspace-inspector
@@ -30,19 +28,10 @@ complementary:
 ---
 
 # Memory Router
-Bias [0.25,0.45,0.05,0.25] etc
 
-## Install
-
-```bash
-openwiki code --init # for repo docs in openwiki/ 
-openwiki personal --init # for personal brain ~/.openwiki/wiki from git, gmail, notion etc
-openwiki auth gmail # saves to ~/.openwiki/.env, then ingest directly with no MCP
-openwiki ingest all # reads ~/.openwiki/connectors/<connector>/raw/ then synthesizes wiki
-```
-
-CI keeps docs fresh: copy openwiki-update.yml into .github/workflows/openwiki-update.yml and use openwiki code --update --print in CI without init.
-
-Secrets are referenced by env var name and stored in ~/.openwiki/.env; config files never contain raw secret values.
+Scopes an instruction with ShardMemo Tier A (safety) / Tier B (memory system) / Tier C
+(domain), routes S1/S2/Critic/Planner weights, and reports the real KL divergence between
+the routed distribution and the branch bias prior (e.g. code `[0.25,0.45,0.05,0.25]`).
+Also recalls shards minted by the memory-mint skill when its store is present.
 
 Solo personal project, no connection to employer, built with public/free-tier only.

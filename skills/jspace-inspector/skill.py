@@ -1,11 +1,24 @@
 # Solo personal project, no connection to employer, built with public/free-tier only
-"""jspace-inspector: inspect J-space slots, run 5 canonical tests live"""
+"""jspace-inspector: inspect J-space slots; real mode runs the full canonical J-test
+set (spider_ant, france_china, soccer_rugby, spanish_french, safety_blackmail) via the
+sibling ava-open-harness `jspace_all` runner and aggregates its per-test records."""
 from __future__ import annotations
 from typing import Any, Dict, List
-import random, math
+import pathlib, random, sys
 
 def describe() -> Dict[str, Any]:
-    return {"name":"jspace-inspector","description":"Inspect J-space slots, run 5 canonical tests live","j_space_target":"Router","half_life":50,"triggers":["inspect","jspace","france china","spider ant"]}
+    """Routing metadata read from SKILL.md frontmatter — the single source of truth."""
+    from pathlib import Path
+    here = Path(__file__).resolve().parent
+    try:
+        from skills.loader import describe_from_manifest
+    except ImportError:  # loaded standalone without the skills package on sys.path
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_ava_skills_loader", here.parent / "loader.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        describe_from_manifest = mod.describe_from_manifest
+    return describe_from_manifest(here)
 
 def _mock_top_concepts(seed: int, k: int = 8) -> List[Dict[str,Any]]:
     random.seed(seed)
@@ -14,12 +27,6 @@ def _mock_top_concepts(seed: int, k: int = 8) -> List[Dict[str,Any]]:
     return [{"token": w, "prob": p} for w,p in zip(words, scores)][:k]
 
 def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", eval_name: str | None = None, **kw) -> Dict[str, Any]:
-    # lazy
-    try:
-        import torch
-    except Exception:
-        torch = None
-
     if mode == "mock":
         seed = kw.get("seed", 1234)
         random.seed(seed)
@@ -43,15 +50,30 @@ def run(model: Any = None, tokenizer: Any = None, mode: str = "mock", eval_name:
         passed = (0.02 <= mass <= 0.20)
         return {"skill":"jspace-inspector","mode":"mock","measured":measured,"pass":passed,"bar":"mass in [0.02,0.20] and broadcast 20% target","eval_requested": eval_name}
 
-    # real mode delegates to the harness; propagate its full record (incl. the
-    # honest-failure 'error' explanation) rather than stripping it — a bare
-    # measured=None FAIL is indistinguishable from a genuinely measured failure.
+    # Real mode runs the FULL canonical J-test set via the sibling ava-open-harness
+    # registry, aggregating one record per test. Each record's full content (incl.
+    # any honest-failure 'error' explanation) is propagated rather than stripped —
+    # a bare measured=None FAIL is indistinguishable from a genuinely measured
+    # failure. Per-test exceptions become per-test error records, so one crashing
+    # test cannot erase the others' results.
+    canonical = ["spider_ant", "france_china", "soccer_rugby", "spanish_french", "safety_blackmail"]
+    bar = ">=3/5 canonical J-tests PASS"
     try:
-        from harness.evals.jspace_tests import spider_ant
-        res = spider_ant(model, tokenizer, device=kw.get("device","cpu"))
-        return {"skill":"jspace-inspector","mode":"real",
-                "measured":res.get("measured"),"pass":res.get("pass",False),
-                "bar":res.get("bar",""),"error":res.get("error")}
+        harness_root = pathlib.Path(__file__).resolve().parents[2].parent / "ava-open-harness"
+        if harness_root.exists() and str(harness_root) not in sys.path:
+            sys.path.insert(0, str(harness_root))
+        from harness.registry import get_eval
+        import harness.evals.jspace_tests  # noqa: F401 — registers the canonical tests
     except Exception as e:
         return {"skill":"jspace-inspector","mode":"real","measured":None,"pass":False,
-                "bar":"","error":str(e)}
+                "bar":bar,"error":f"ava-open-harness not importable: {e}"}
+    records: Dict[str, Any] = {}
+    for name in canonical:
+        try:
+            records[name] = get_eval(name)["fn"](model, tokenizer, kw.get("device", "cpu"))
+        except Exception as e:
+            records[name] = {"test": name, "measured": None, "pass": False, "error": str(e)}
+    passed = sum(1 for r in records.values() if r.get("pass"))
+    return {"skill":"jspace-inspector","mode":"real",
+            "measured":{"passed":passed,"total":len(canonical),"details":records},
+            "pass": passed>=3, "bar": bar}

@@ -1,6 +1,6 @@
 ---
 name: logic-prover
-description: Generate synthetic logic textbooks Phi Method B (P0 50B corpus)
+description: Generate synthetic logic corpora (truth tables + syllogisms), Phi-style Method B
 triggers:
 - logic
 - prover
@@ -12,12 +12,8 @@ broadcast_target: 0.22
 reportability_target: 0.065
 dependencies:
 - numpy
-connectors:
-- git-repo
-- google
-- notion
-- web-search
-provider: openai
+connectors: []
+provider: none
 version: 2.1.0
 precedes:
 - code-bench
@@ -28,19 +24,11 @@ complementary:
 ---
 
 # Logic Prover
-Generates 50B logic textbooks
 
-## Install
-
-```bash
-openwiki code --init # for repo docs in openwiki/ 
-openwiki personal --init # for personal brain ~/.openwiki/wiki from git, gmail, notion etc
-openwiki auth gmail # saves to ~/.openwiki/.env, then ingest directly with no MCP
-openwiki ingest all # reads ~/.openwiki/connectors/<connector>/raw/ then synthesizes wiki
-```
-
-CI keeps docs fresh: copy openwiki-update.yml into .github/workflows/openwiki-update.yml and use openwiki code --update --print in CI without init.
-
-Secrets are referenced by env var name and stored in ~/.openwiki/.env; config files never contain raw secret values.
+Generates synthetic propositional-logic training data: full AND/OR/IMPLIES truth tables and
+template syllogisms, each record self-verified at generation time. Mock mode counts a small
+sample; real mode writes structured JSONL to `out_dir` (default `data/raw/logic/`) and
+reports the actual records and bytes written. A 50B-token corpus is a long-term aspiration,
+not something this skill produces. Run with `python -m skills.loader run logic-prover`.
 
 Solo personal project, no connection to employer, built with public/free-tier only.

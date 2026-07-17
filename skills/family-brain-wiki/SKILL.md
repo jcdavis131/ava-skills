@@ -1,6 +1,6 @@
 ---
 name: family-brain-wiki
-description: Bridge to Family Brain OS WikiTab export wikiPages -> S2
+description: Bridge Family Brain OS WikiTab pages (JSON export of family-brain-wiki-pages:v1) into S2
 triggers:
 - family
 - wiki
@@ -12,12 +12,8 @@ broadcast_target: 0.22
 reportability_target: 0.065
 dependencies:
 - numpy
-connectors:
-- git-repo
-- google
-- notion
-- web-search
-provider: openai
+connectors: []
+provider: none
 version: 2.1.0
 precedes: []
 requires:
@@ -29,19 +25,10 @@ complementary:
 ---
 
 # Family Brain Wiki Bridge
-Reads localStorage family-brain-wiki-pages:v1
 
-## Install
-
-```bash
-openwiki code --init # for repo docs in openwiki/ 
-openwiki personal --init # for personal brain ~/.openwiki/wiki from git, gmail, notion etc
-openwiki auth gmail # saves to ~/.openwiki/.env, then ingest directly with no MCP
-openwiki ingest all # reads ~/.openwiki/connectors/<connector>/raw/ then synthesizes wiki
-```
-
-CI keeps docs fresh: copy openwiki-update.yml into .github/workflows/openwiki-update.yml and use openwiki code --update --print in CI without init.
-
-Secrets are referenced by env var name and stored in ~/.openwiki/.env; config files never contain raw secret values.
+Ingests WikiTab pages from a JSON export of the browser localStorage key
+`family-brain-wiki-pages:v1` (pass `export_path=/path/to/export.json`); without an export it
+falls back to a filesystem scan, then to generated sample pages. Real S2 injection is not
+wired, so real mode refuses honestly; mock mode reports a clearly simulated mass.
 
 Solo personal project, no connection to employer, built with public/free-tier only.
