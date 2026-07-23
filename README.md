@@ -2,9 +2,9 @@
 
 > **Solo personal project, no connection to employer, built with public/free-tier only**
 
-Skill system for Ava AGI Factory v6.4 — dynamic loading, J-Space routed (S1 Fast hl=8, S2 Slow hl=300, Critic hl=30, Planner hl=150, Router), half-life aware, openwiki-synced.
+Skill system for the [Ava Factory v6.4](https://github.com/jcdavis131/ava-agi-factory-v6-4) research project. Skills are dynamically loaded and routed to the model's J-Space slot banks (S1 fast, S2 slow, critic, planner), each with a configured half-life. Each skill is a markdown contract (`SKILL.md`) plus a typed Python module (`skill.py`) plus tests.
 
-Inspired by `cursor-agent-skills` (42 skills) but purpose-built for Ava's Global Workspace architecture. Each skill is a markdown contract `SKILL.md` + typed Python module `skill.py` + tests.
+Status: experimental; developed alongside the Ava Factory pilots.
 
 ## Quickstart
 
@@ -35,7 +35,7 @@ version: 0.1.0
 ---
 ```
 
-## 9 Starter Skills
+## Starter skills (9)
 
 Values below mirror each skill's `SKILL.md` frontmatter — the single source of truth
 (`describe()` reads the manifest at runtime, so code and docs cannot drift).
