@@ -68,6 +68,19 @@ result = loader.run("openwiki-sync", wiki_path="~/.openwiki/wiki")
 
 Family Brain: skill reads/writes encrypted wiki pages same format as WikiTab.
 
+## Ecosystem
+
+Status as of 2026-08-09.
+
+This repository is vendored into [dottie](https://github.com/jcdavis131/dottie) at `packages/ava-skills`. Per dottie's `docs/CONSOLIDATION.md`, the standalone repos are vendored mirrors, not sources of truth: development consolidates in dottie, changes originate there and are pushed outward, never the reverse.
+
+In dottie's CI (`.github/workflows/ci.yml`):
+
+- Ruff lint on `packages/ava-skills` is a hard gate held at zero findings (ruff 0.15.22, pinned; hard since 2026-08-01).
+- The test suite runs as a hard gate (`uv run pytest packages/ava-skills`), with 89 tests passing at the 2026-08-01 measurement recorded in that workflow.
+
+Sync state, measured 2026-08-09 by `diff -rq` against dottie's `packages/ava-skills`: this mirror lags the dottie copy. 22 files differ, and 5 paths exist only in dottie (the `jspace-context-engine` skill, `skills/state_store.py`, `skills/telemetry_export.py`, and two test files); nothing here is absent from dottie. For current code, use dottie.
+
 ## Free-tier only
 
 Public pip only, torch lazy, MIT. Solo personal project, no connection to employer, built with public/free-tier only.
