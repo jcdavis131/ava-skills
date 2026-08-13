@@ -2,7 +2,9 @@
 """code-bench: Exec-verified Python generation (P2 code)"""
 from __future__ import annotations
 from typing import Any, Dict
-import subprocess, tempfile, pathlib
+import subprocess
+import tempfile
+import pathlib
 
 def describe() -> Dict[str, Any]:
     """Routing metadata read from SKILL.md frontmatter — the single source of truth."""

@@ -8,7 +8,9 @@ Public pip only: onnxruntime, transformers optional
 
 from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
-import re, random, pathlib
+import re
+import random
+import pathlib
 
 def describe() -> Dict[str, Any]:
     """Routing metadata read from SKILL.md frontmatter — the single source of truth."""

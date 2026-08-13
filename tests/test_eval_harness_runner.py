@@ -1,7 +1,6 @@
 # Solo personal project, no connection to employer, built with public/free-tier only
 """eval-harness-runner: the mock-mode bar is now reachable (passed==total gate)."""
 
-from pathlib import Path
 
 import pytest
 

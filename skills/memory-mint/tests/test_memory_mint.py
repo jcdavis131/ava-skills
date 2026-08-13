@@ -6,7 +6,6 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
 
 SKILL_PATH = Path(__file__).resolve().parent.parent / "skill.py"
 spec = importlib.util.spec_from_file_location("memory_mint_skill", SKILL_PATH)

@@ -9,7 +9,9 @@ long-term aspiration of the broader project, not this generator's output.
 """
 from __future__ import annotations
 from typing import Any, Dict, List
-import json, pathlib, random
+import json
+import pathlib
+import random
 
 def describe() -> Dict[str, Any]:
     """Routing metadata read from SKILL.md frontmatter — the single source of truth."""

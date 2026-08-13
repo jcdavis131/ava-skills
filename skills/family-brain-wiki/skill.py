@@ -7,7 +7,8 @@ scan, then to generated sample pages.
 """
 from __future__ import annotations
 from typing import Any, Dict, List
-import json, pathlib
+import json
+import pathlib
 
 STORAGE_KEY = "family-brain-wiki-pages:v1"
 

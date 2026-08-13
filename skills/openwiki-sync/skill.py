@@ -2,7 +2,9 @@
 """openwiki-sync: Sync OpenWiki personal wiki (~/.openwiki/wiki) into S2 Slow hl300 verbalizable memory"""
 from __future__ import annotations
 from typing import Any, Dict, List
-import os, pathlib, re
+import os
+import pathlib
+import re
 
 def describe() -> Dict[str, Any]:
     """Routing metadata read from SKILL.md frontmatter — the single source of truth."""

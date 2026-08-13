@@ -2,7 +2,8 @@
 """eval-harness-runner: Run ava-open-harness, gate stable checkpoint"""
 from __future__ import annotations
 from typing import Any, Dict
-import sys, pathlib
+import sys
+import pathlib
 
 def describe() -> Dict[str, Any]:
     """Routing metadata read from SKILL.md frontmatter — the single source of truth."""

@@ -2,7 +2,6 @@
 """loader: frontmatter parsing, topo sort (+cycle fallback), wRRF determinism,
 describe()/manifest consistency, Tier-A-first graph execution."""
 
-from pathlib import Path
 
 from conftest import SKILLS_DIR, load_skill_module
 from skills.loader import SkillLoader, _parse_frontmatter, describe_from_manifest

@@ -7,7 +7,12 @@ Public pip only, free-tier
 """
 from __future__ import annotations
 from typing import Dict, Any, List, Tuple, Set
-import os, pathlib, re, sys, json, math, importlib.util
+import pathlib
+import re
+import sys
+import json
+import math
+import importlib.util
 from collections import defaultdict, deque
 
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)

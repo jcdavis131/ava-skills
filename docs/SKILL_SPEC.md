@@ -87,8 +87,10 @@ Runner will check anti-mock: no hardcoded 0.82 etc.
 
 ## CI
 
-This repo currently has NO CI workflows (`.github/workflows/` does not exist; an earlier
-version of this doc referenced an `openwiki-update.yml` workflow that was never part of
-this repo). Gating is manual: run the pytest suites and `python -m skills.loader test`
-locally before merging.
+`.github/workflows/ci.yml` runs on every push/PR to `main`: `ruff check .` (pinned to
+the same 0.15.22 used by dottie's gate), the pytest suites, and
+`python -m skills.loader test` (mock-mode smoke run of every skill), across Python
+3.10/3.11/3.12. An earlier version of this doc referenced an `openwiki-update.yml`
+workflow that was never part of this repo, and before that there was no CI at all —
+gating was manual. Both are now superseded by the workflow above.
 
